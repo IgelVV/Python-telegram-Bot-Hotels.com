@@ -1,7 +1,3 @@
-# основной модуль loader.py, который погружает все нужное, создает экземпляры, если нужны.
-# В нем должны подгружаться все нужные константы(токены бота, API)
-# и инициализироваться класс с ботом TeleBot
-
 import os
 import telebot
 import requests
@@ -14,7 +10,7 @@ class Users:
 
     def __init__(self, user_id):
         self.city = None
-        self.city_id = None  # сделать сеттер с проверкой int
+        self.city_id = None  # todo сделать сеттер с проверкой int
         self.check_in = None
         self.check_out = None
         self.hotels_count = None

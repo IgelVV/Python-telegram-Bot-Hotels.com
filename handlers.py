@@ -1,6 +1,3 @@
-# дочерний handlers.py, в нем объявляются все кастомные хендлеры - получение города,
-# количества отлей и прочее;
-
 import rapidapi
 from loader import *
 from telegram_bot_calendar import WYearTelegramCalendar, LSTEP
@@ -8,7 +5,12 @@ from datetime import date
 
 
 @bot.message_handler(commands=['start', 'help', 'lowprice', 'highprice', 'bestdeal', 'history'])
-def main_request(message):
+def main_request(message):  # Документацию писать на русском или английском?
+    """
+
+    :param message:
+    :return:
+    """
     user = Users.get_user(message.from_user.id)
     user.command = message.text
 
@@ -34,7 +36,6 @@ def start_request(message):
     /help - список команд
     '''
     bot.send_message(message.chat.id, start_response)
-    # история пользователя не сохраняется
 
 
 def help_request(message):
@@ -52,7 +53,6 @@ def help_request(message):
 
 def city_request(message):
     cities = rapidapi.api_get_locate(message.text)
-    # Функция "api_get_locate" уже возвращает список словарей с нужным именем и id
     destinations = types.InlineKeyboardMarkup()
     for city in cities:
         callback_data = f'{city["destination_id"]}<city>'
@@ -66,9 +66,9 @@ def callback_query(call):
     user = Users.get_user(call.from_user.id)
     user.city_id = rapidapi.remove_tags(call.data)
 
+    bot.answer_callback_query(call.id, "Выбор учтён")
     bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
-    bot.answer_callback_query(call.id, "Выбор учтён")
 
     calendar, step = WYearTelegramCalendar(calendar_id='in',
                                            min_date=date.today(),
@@ -182,19 +182,37 @@ def send_photos(call):
     else:
         user.with_photos = False
 
+    bot.answer_callback_query(call.id, "Выбор учтён")
     bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
-    bot.answer_callback_query(call.id, "Выбор учтён")
+    bot.send_message(call.message.chat.id, 'Ведется поиск отелей...')
 
     found_hotels = rapidapi.api_get_hotels(user)
     count = 0
     for hotel in found_hotels:
         count += 1
         if count <= user.hotels_count:
-            bot.send_message(call.message.chat.id,
-                             f"{hotel['hotel_name']}, "
-                             f"id: {hotel['hotel_id']}, "
-                             f"расстояние :{hotel['distance_from_center']}")
+
+            hotel_info = f"{hotel['hotel_name']}, " \
+                         f"id: {hotel['hotel_id']}, " \
+                         f"расстояние: {hotel['distance_from_center']}, " \
+                         f"цена: {hotel['price']}"
+
+            if user.with_photos:
+                photos_url = rapidapi.api_get_photos(hotel['hotel_id'])
+                print(hotel['hotel_id'])
+                caption_flag = True
+                photos = []
+                for i_photo_url in photos_url:
+                    if caption_flag:
+                        photos.append(types.InputMediaPhoto(i_photo_url, caption=hotel_info))
+                        caption_flag = False
+                    else:
+                        photos.append(types.InputMediaPhoto(i_photo_url))
+                bot.send_media_group(call.message.chat.id, photos)
+                print(photos_url)
+            else:
+                bot.send_message(call.message.chat.id, hotel_info)
         else:
             break
 
