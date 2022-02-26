@@ -1,18 +1,16 @@
-import telebot
-from telebot import types
+# Основной скрипт который запускает работу. В нем должны быть нужные импорты и функции,
+# которые используют декораторы message_handler и подобные.
 
-token = "5174156677:AAEn5Y6gN5EKHjoqZton8pdM7XEgx5Y4YAo"
-bot = telebot.TeleBot(token)
+# todo
+#  1) Создать функцию поиска отелей в городе
+#   1.1) Учитывать количество запрашиваемых отелей
+#   1.2) Указать цену
+#   1.3) Выводить сообщение о проведении поиска
+#  2) создать функцию поиска фотографий в отеле (без выбора количества фото)
+#  3) прикрутить поиск отелей с фото и без к функции /lowprice и highprice
 
+from handlers import bot
 
-@bot.message_handler(commands=['hello-world'])
-def start_message(message):
-    bot.send_message(message.chat.id, "Привет ✌️ ")
+if __name__ == '__main__':
+    bot.infinity_polling()
 
-
-@bot.message_handler(func=lambda message: message.text == 'Привет')
-def button_message(message):
-    bot.send_message(message.chat.id, 'Hi!')
-
-
-bot.polling(none_stop=True, interval=0)
