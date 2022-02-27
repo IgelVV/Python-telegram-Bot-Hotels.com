@@ -1,18 +1,6 @@
-import telebot
-from telebot import types
+from handlers import bot  # Как должные происходить импорты?
+# по цепочке или из каждого модуля на прямую, из loader в handlers или наоборот?
 
-token = "5174156677:AAEn5Y6gN5EKHjoqZton8pdM7XEgx5Y4YAo"
-bot = telebot.TeleBot(token)
+if __name__ == '__main__':  # Что тут должно быть кроме старта?
+    bot.infinity_polling()
 
-
-@bot.message_handler(commands=['hello-world'])
-def start_message(message):
-    bot.send_message(message.chat.id, "Привет ✌️ ")
-
-
-@bot.message_handler(func=lambda message: message.text == 'Привет')
-def button_message(message):
-    bot.send_message(message.chat.id, 'Hi!')
-
-
-bot.polling(none_stop=True, interval=0)
