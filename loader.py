@@ -1,11 +1,10 @@
 import os
 import telebot
-import requests
 from telebot import types
 from dotenv import load_dotenv
 
 
-class Users:
+class Users:  # todo сохранять информацию о поиске
     all_users = dict()
 
     def __init__(self, user_id):
@@ -37,4 +36,3 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 RAPIDAPI_KEY = os.getenv('RAPIDAPI_KEY')
 
 bot = telebot.TeleBot(BOT_TOKEN)
-

@@ -3,6 +3,7 @@ import re
 import json
 from loader import RAPIDAPI_KEY
 
+#  Где хранить эти данные? Нужно ли записывать большими буквами URL_HOST?
 url_host = 'https://hotels4.p.rapidapi.com/'
 url_paths = {
     'locations': 'locations/v2/search',
@@ -17,6 +18,13 @@ headers = {
 
 
 def request_to_api(url, params, timeout=20):
+    """
+    Базовая функция запроса к API
+    :param url:
+    :param params:
+    :param timeout:
+    :return:
+    """
     try:
         response = requests.get(url, headers=headers, params=params, timeout=timeout)
         if response.status_code == requests.codes.ok:
@@ -105,7 +113,7 @@ def api_get_hotels(user, page_number='1', page_size="25",
 
 
 def api_get_photos(hotel_id: str, room_images=0, hotel_images=3):
-    # размер фото Z
+    # размер фото минимальный (чаще всего Z)
     url = url_host + url_paths['photos']
     querystring = {"id": hotel_id}
     response = request_to_api(url, querystring)
@@ -131,7 +139,8 @@ def api_get_photos(hotel_id: str, room_images=0, hotel_images=3):
             if room_image_count <= room_images:
                 room_image_url = i_room['images'][0]['baseUrl'].replace(
                     '{size}',
-                    i_room['images'][0]['sizes'][0]['suffix']  #todo переписать, иногда присылает одинаковые фотки
+                    i_room['images'][0]['sizes'][0]['suffix']
+                    # todo переписать, иногда присылает одинаковые фотки
                 )
                 image_url_lst.append(room_image_url)
                 room_image_count += 1

@@ -5,7 +5,9 @@ from datetime import date
 
 
 @bot.message_handler(commands=['start', 'help', 'lowprice', 'highprice', 'bestdeal', 'history'])
-def main_request(message):  # Документацию писать на русском или английском?
+def main_request(message):
+    # Документацию писать на русском или английском? Как описывать параметры,
+    # нужно указывать тип данных как в аннотации или объяснять откуда и зачем они берутся?
     """
 
     :param message:
@@ -174,6 +176,7 @@ def search_depth(message):
         bot.register_next_step_handler(message, search_depth)
 
 
+#  нужно ли разделить эту функцию на мелкие?
 @bot.callback_query_handler(func=lambda call: call.data == 'yes' or call.data == 'no')
 def send_photos(call):
     user = Users.get_user(call.from_user.id)
