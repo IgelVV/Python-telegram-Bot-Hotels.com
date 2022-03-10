@@ -5,9 +5,20 @@ from dotenv import load_dotenv
 
 
 class Users:  # todo сохранять информацию о поиске
+
+    """
+    первая строка
+
+    более длинное описание
+    """
+
     all_users = dict()
 
     def __init__(self, user_id):
+        """
+
+        :param user_id:
+        """
         self.city = None
         self.city_id = None  # todo сделать сеттер с проверкой int
         self.check_in = None
@@ -17,6 +28,7 @@ class Users:  # todo сохранять информацию о поиске
         self.price_range = None
         self.distance = None
         self.with_photos = None
+        self.found_hotels = None
         Users.add_user(user_id, self)
 
     @staticmethod

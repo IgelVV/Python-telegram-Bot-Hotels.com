@@ -1,20 +1,8 @@
 import requests
-import re
 import json
-from loader import RAPIDAPI_KEY
-
-#  Где хранить эти данные? Нужно ли записывать большими буквами URL_HOST?
-url_host = 'https://hotels4.p.rapidapi.com/'
-url_paths = {
-    'locations': 'locations/v2/search',
-    'properties': 'properties/list',
-    'photos': 'properties/get-hotel-photos'
-}
-
-headers = {
-    'x-rapidapi-host': "hotels4.p.rapidapi.com",
-    'x-rapidapi-key': RAPIDAPI_KEY
-}
+import re
+import auxiliary
+from settings import *
 
 
 def request_to_api(url, params, timeout=20):
@@ -33,6 +21,7 @@ def request_to_api(url, params, timeout=20):
         print(ex)
 
 
+# перенести локализацию в settings
 def api_get_locate(query, locale='ru_RU', currency='RUB'):
     """
     Запрос к API Hotels для получения списка городов с похожим названием
@@ -43,19 +32,19 @@ def api_get_locate(query, locale='ru_RU', currency='RUB'):
     :return: Список словарей {название города; ID города}
     """
 
-    url = url_host + url_paths['locations']
+    url = URL_HOST + URL_PATHS['locations']
     querystring = {"query": query, "locale": locale, "currency": currency}
     response = request_to_api(url, querystring)
 
     pattern = r'(?<="CITY_GROUP",).+?[\]]'
-    find = re.search(pattern, response.text)
+    find = re.search(pattern, response.text)  #todo AttributeError: 'NoneType' object has no attribute 'text'
     if find:
-        find_dict = json.loads(f"{{{find[0]}}}")
+        find = json.loads(f"{{{find[0]}}}")
         result = [{
-            'city_name': remove_tags(cities['caption']),
+            'city_name': auxiliary.remove_tags(cities['caption']),
             'destination_id': cities['destinationId']
         }
-            for cities in find_dict['entities']
+            for cities in find['entities']
             if cities['type'] == 'CITY']
         return result
     else:
@@ -64,7 +53,7 @@ def api_get_locate(query, locale='ru_RU', currency='RUB'):
 
 def api_get_hotels(user, page_number='1', page_size="25",
                    adults1='1', locale='ru_RU', currency='RUB'):
-    url = url_host + url_paths['properties']
+    url = URL_HOST + URL_PATHS['properties']
     destination_id = user.city_id
     check_in = user.check_in
     check_out = user.check_out
@@ -81,14 +70,14 @@ def api_get_hotels(user, page_number='1', page_size="25",
     }
 
     if user.command == 'lowprice':
-        sort_order = "PRICE"  # todo from settings
+        sort_order = QUERY_PARAMETERS["sortOrder"]["lowprice"]
         querystring["sortOrder"] = sort_order
     elif user.command == 'highprice':
-        sort_order = "PRICE_HIGHEST_FIRST"
+        sort_order = QUERY_PARAMETERS["sortOrder"]['highprice']
         querystring["sortOrder"] = sort_order
     elif user.command == 'bestdeal':
-        sort_order = "DISTANCE_FROM_LANDMARK"
-        price_min = user.price_range[0]  # todo to str
+        sort_order = QUERY_PARAMETERS["sortOrder"]['bestdeal']
+        price_min = user.price_range[0]
         price_max = user.price_range[1]
         querystring["sortOrder"] = sort_order
         querystring["priceMin"] = price_min
@@ -99,14 +88,20 @@ def api_get_hotels(user, page_number='1', page_size="25",
     pattern = r'"results".+?(?=,"pagination")'
     find = re.search(pattern, response.text)
     if find:
-        find_dict = json.loads(f"{{{find[0]}}}")
-        result = [{
-            'hotel_name': hotel['name'],
-            'hotel_id': hotel['id'],
-            'distance_from_center': hotel['landmarks'][0]['distance'],
-            'price': hotel['ratePlan']['price']['current'].replace(',', ' ')
-        }
-            for hotel in find_dict['results']]
+        find = json.loads(f"{{{find[0]}}}")
+        result = list()
+        for hotel in find['results']:
+            hotel_info = {
+                'hotel_name': hotel['name'],
+                'hotel_id': hotel['id'],
+                'distance_from_center': hotel['landmarks'][0]['distance']
+            }
+            try:
+                hotel_info['price'] = hotel['ratePlan']['price']['current'].replace(',', ' ') # иногда ratePlan нет
+            except KeyError as e:
+                print(f'KeyError {e} {hotel["id"]}')
+                hotel_info['price'] = ' - '
+            result.append(hotel_info)
         return result
     else:
         return None
@@ -114,71 +109,37 @@ def api_get_hotels(user, page_number='1', page_size="25",
 
 def api_get_photos(hotel_id: str, room_images=0, hotel_images=3):
     # размер фото минимальный (чаще всего Z)
-    url = url_host + url_paths['photos']
+    url = URL_HOST + URL_PATHS['photos']
     querystring = {"id": hotel_id}
     response = request_to_api(url, querystring)
 
     pattern = r'"hotelImages".+?(?=,"featuredImageTrackingDetails")'
-    find = re.search(pattern, response.text)
+    find = re.search(pattern, response.text)   # todo AttributeError: 'NoneType' object has no attribute 'text'
     if find:
-        find_dict = json.loads(f"{{{find[0]}}}")
+        find = json.loads(f"{{{find[0]}}}")
         hotel_image_count = 1
         room_image_count = 1
-        image_url_lst = []
-        for i_hotel_image in find_dict['hotelImages']:
+        url_all_images = []
+        for hotel_image in find['hotelImages']:
             if hotel_image_count <= hotel_images:
-                hotel_image_url = i_hotel_image['baseUrl'].replace(
+                hotel_image_url = hotel_image['baseUrl'].replace(
                     '{size}',
-                    i_hotel_image['sizes'][0]['suffix']
+                    hotel_image['sizes'][0]['suffix']
                 )
-                image_url_lst.append(hotel_image_url)
+                url_all_images.append(hotel_image_url)
                 hotel_image_count += 1
             else:
                 break
-        for i_room in find_dict['roomImages']:
+        for room in find['roomImages']:
             if room_image_count <= room_images:
-                room_image_url = i_room['images'][0]['baseUrl'].replace(
+                room_image_url = room['images'][0]['baseUrl'].replace(
                     '{size}',
-                    i_room['images'][0]['sizes'][0]['suffix']
-                    # todo переписать, иногда присылает одинаковые фотки
+                    room['images'][0]['sizes'][0]['suffix']
                 )
-                image_url_lst.append(room_image_url)
+                url_all_images.append(room_image_url)
                 room_image_count += 1
             else:
                 break
-        return image_url_lst
+        return url_all_images
     else:
         return None
-
-
-def remove_tags(text):  # куда деть эти функции не связанные напрямую с запросами?
-    # создать еще один модуль?
-    """
-    Очистка текста от HTML тегов.
-    :param text:
-    :return:
-    """
-    html_text_regex = re.compile(r'<[^>]+>')
-    return html_text_regex.sub('', text)
-
-
-def find_number(text):
-    """
-
-    :param text:
-    :return:
-    """
-    result = re.search('[0-9]+', text)
-    if result is not None:
-        number_str = result.group(0)
-        number = int(number_str)
-    else:
-        number = None
-    return number
-
-
-def price_range_from_text(text):
-    list_of_numb_str = re.findall('[0-9]+', text)
-    list_of_numb_int = [int(numb) for numb in list_of_numb_str]
-    list_of_numb_int.sort()
-    return list_of_numb_int
