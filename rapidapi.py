@@ -18,17 +18,17 @@ def request_to_api(url, params, timeout=20):
         if response.status_code == requests.codes.ok:
             return response
     except Exception as ex:
-        print(ex)
+        print(f'{type(ex).__name__}: {ex}')
+        return None
 
 
-# перенести локализацию в settings
-def api_get_locate(query, locale='ru_RU', currency='RUB'):
+def api_get_locate(query, locale=LOCALE, currency=CURRENCY):
     """
     Запрос к API Hotels для получения списка городов с похожим названием
 
     :param query: Название города
-    :param locale:
-    :param currency:
+    :param locale: Язык
+    :param currency: Валюта
     :return: Список словарей {название города; ID города}
     """
 
@@ -37,17 +37,19 @@ def api_get_locate(query, locale='ru_RU', currency='RUB'):
     response = request_to_api(url, querystring)
 
     pattern = r'(?<="CITY_GROUP",).+?[\]]'
-    find = re.search(pattern, response.text)  #todo AttributeError: 'NoneType' object has no attribute 'text'
-    if find:
+    try:
+        find = re.search(pattern, response.text)
         find = json.loads(f"{{{find[0]}}}")
         result = [{
             'city_name': auxiliary.remove_tags(cities['caption']),
             'destination_id': cities['destinationId']
-        }
+            }
             for cities in find['entities']
-            if cities['type'] == 'CITY']
+            if cities['type'] == 'CITY'
+        ]
         return result
-    else:
+    except (AttributeError, KeyError, TypeError) as ex:
+        print(f'{type(ex).__name__}: {ex}')
         return None
 
 

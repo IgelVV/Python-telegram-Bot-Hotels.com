@@ -75,14 +75,19 @@ def city_request(message):
     """
     cities = rapidapi.api_get_locate(message.text)
     destinations = types.InlineKeyboardMarkup()
-    if len(cities):
-        for city in cities:
-            callback_data = f'{city["destination_id"]}<city>'
-            destinations.add(
-                types.InlineKeyboardButton(text=city['city_name'], callback_data=callback_data))
-        bot.send_message(message.from_user.id, 'Уточните, пожалуйста:', reply_markup=destinations)
+    if cities is not None:
+        if len(cities):
+            for city in cities:
+                callback_data = f'{city["destination_id"]}<city>'
+                destinations.add(
+                    types.InlineKeyboardButton(text=city['city_name'],
+                                               callback_data=callback_data))
+            bot.send_message(message.from_user.id, 'Уточните, пожалуйста:',
+                             reply_markup=destinations)
+        else:
+            bot.send_message(message.chat.id, f'По запросу "{message.text}" ничего не найдено.')
     else:
-        bot.send_message(message.chat.id, f'По запросу "{message.text}" ничего не найдено.')
+        bot.send_message(message.chat.id, f'При обращении к сайту Hotels произошла ошибка')
 
 
 @bot.callback_query_handler(func=lambda call: call.data.endswith("<city>"))
@@ -97,7 +102,7 @@ def callback_query_city(call):
     user = Users.get_user(call.from_user.id)
     user.city_id = auxiliary.remove_tags(call.data)
 
-    bot.answer_callback_query(call.id, "Выбор учтён")
+    bot.answer_callback_query(call.id, f"Выбор учтён")
     bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
 
@@ -107,7 +112,7 @@ def callback_query_city(call):
     bot.send_message(call.from_user.id, "Выберите дату заезда", reply_markup=calendar)
 
 
-@bot.callback_query_handler(func=WYearTelegramCalendar.func(calendar_id='in', ))
+@bot.callback_query_handler(func=WYearTelegramCalendar.func(calendar_id='in'))
 def callback_check_in_calendar(call):
     """
     Сохраняет выбор даты заезда
@@ -136,7 +141,7 @@ def callback_check_in_calendar(call):
         bot.send_message(call.from_user.id, "Выберите дату отъезда", reply_markup=calendar)
 
 
-@bot.callback_query_handler(func=WYearTelegramCalendar.func(calendar_id='out', ))
+@bot.callback_query_handler(func=WYearTelegramCalendar.func(calendar_id='out'))
 def callback_check_out_calendar(call):
     """
     Сохраняет выбор даты отъезда

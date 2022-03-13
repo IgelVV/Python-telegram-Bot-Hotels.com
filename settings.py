@@ -21,3 +21,7 @@ QUERY_PARAMETERS = {
         "bestdeal": "DISTANCE_FROM_LANDMARK"
                   }
 }
+
+LOCALE = 'ru_RU'
+
+CURRENCY = 'RUB'
