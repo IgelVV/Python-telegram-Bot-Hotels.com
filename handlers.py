@@ -3,6 +3,8 @@ import auxiliary
 from loader import *
 from telegram_bot_calendar import WYearTelegramCalendar
 from datetime import date
+from requests import RequestException
+from telebot.apihelper import ApiTelegramException
 
 
 @bot.message_handler(commands=['start', 'help', 'lowprice', 'highprice', 'bestdeal', 'history'])
@@ -73,21 +75,28 @@ def city_request(message):
     :param message:
     :return:
     """
-    cities = rapidapi.api_get_locate(message.text)
-    destinations = types.InlineKeyboardMarkup()
-    if cities is not None:
-        if len(cities):
-            for city in cities:
-                callback_data = f'{city["destination_id"]}<city>'
-                destinations.add(
-                    types.InlineKeyboardButton(text=city['city_name'],
-                                               callback_data=callback_data))
-            bot.send_message(message.from_user.id, 'Уточните, пожалуйста:',
-                             reply_markup=destinations)
-        else:
-            bot.send_message(message.chat.id, f'По запросу "{message.text}" ничего не найдено.')
-    else:
+
+    user = Users.get_user(message.from_user.id)
+    try:
+        cities = rapidapi.api_get_locate(message.text)
+    except (RequestException, KeyError, TypeError) as ex:
+        print(f'{type(ex).__name__}: {ex}')
         bot.send_message(message.chat.id, f'При обращении к сайту Hotels произошла ошибка')
+        return None
+
+    destinations = types.InlineKeyboardMarkup()
+
+    user.found_cities = cities
+    if len(cities):
+        for destination_id in cities.keys():
+            callback_data = f'{destination_id}<city>'
+            destinations.add(
+                types.InlineKeyboardButton(text=cities[destination_id],
+                                           callback_data=callback_data))
+        bot.send_message(message.from_user.id, 'Уточните, пожалуйста:',
+                         reply_markup=destinations)
+    else:
+        bot.send_message(message.chat.id, f'По запросу "{message.text}" ничего не найдено.')
 
 
 @bot.callback_query_handler(func=lambda call: call.data.endswith("<city>"))
@@ -105,6 +114,7 @@ def callback_query_city(call):
     bot.answer_callback_query(call.id, f"Выбор учтён")
     bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
+    bot.send_message(call.from_user.id, f"{user.found_cities[user.city_id]}")
 
     calendar, step = WYearTelegramCalendar(calendar_id='in',
                                            min_date=date.today(),
@@ -267,23 +277,32 @@ def callback_send_photos(call):
 
 def send_result(message):
     """
-    Обращается к API Hotels, получает данные подходящих по запросу отелей и выводит пользователю
+    Обращается к API Hotels, получает данные подходящих по запросу отелей и выводит пользователю.
     :param message:
     :return:
     """
     user = Users.get_user(message.chat.id)
-    # Иногда None
-    found_hotels = rapidapi.api_get_hotels(user)
-    # user.found_hotels = found_hotels
+    try:
+        found_hotels = rapidapi.api_get_hotels(user)
+    except (RequestException, KeyError, TypeError) as ex:
+        print(f'{type(ex).__name__}: {ex}')
+        bot.send_message(message.chat.id, f'При обращении к сайту Hotels произошла ошибка')
+        return None
+    user.found_hotels = list()
+
     count = 0
     for hotel in found_hotels:
 
         if count < user.hotels_count:
             distance = auxiliary.find_number(hotel['distance_from_center'])
             if user.command == r'/bestdeal':
-                if distance > user.distance:
+                if distance is not None:
+                    if distance > user.distance:
+                        continue
+                else:
                     continue
 
+            user.found_hotels.append(hotel)
             hotel_info = (
                 f"{hotel['hotel_name']}, "
                 f"id: {hotel['hotel_id']}, "
@@ -293,17 +312,41 @@ def send_result(message):
             )
 
             if user.with_photos:
-                send_hotel_info_with_photos(hotel['hotel_id'], message, hotel_info)
+                try:
+                    send_hotel_info_with_photos(hotel['hotel_id'], message, hotel_info)
+                except (RequestException, KeyError, TypeError) as ex:
+                    print(f'{type(ex).__name__}: {ex}')
+                    bot.send_message(message.chat.id,
+                                     f'При обращении к сайту Hotels произошла ошибка')
+                    count -= 1
+                except ApiTelegramException as ex:
+                    print(f'{type(ex).__name__}: {ex}')
+                    try:
+                        send_hotel_photos_one_by_one(hotel['hotel_id'], message, hotel_info)
+                    except (RequestException, KeyError, TypeError) as ex:
+                        print(f'{type(ex).__name__}: {ex}')
+                        bot.send_message(message.chat.id,
+                                         f'При обращении к сайту Hotels произошла ошибка')
+                        count -= 1
             else:
                 bot.send_message(message.chat.id, hotel_info)
             count += 1
+
         else:
             break
-    bot.send_message(message.chat.id, f'Поиск завершён, найдено отелей: {count}')  # todo доработать
+    bot.send_message(message.chat.id, f'Поиск завершён, найдено отелей: {count}')
 
 
 def send_hotel_info_with_photos(hotel_id, message, caption):
+    """
+    Формирует медиагруппу из фотографий и подписи, и отправляет пользователю
+    :param hotel_id:
+    :param message:
+    :param caption:
+    :return:
+    """
     photos_url = rapidapi.api_get_photos(hotel_id)
+
     caption_flag = True
     photos = []
     for single_photo_url in photos_url:
@@ -312,12 +355,32 @@ def send_hotel_info_with_photos(hotel_id, message, caption):
             caption_flag = False
         else:
             photos.append(types.InputMediaPhoto(single_photo_url))
-    # Может быть ошибка Error code: 400. Description: Bad Request: group send failed
-    # видимо если ссылка не доступна для телеги
-    # В случае этой ошибки отправлять фотки для этого отеля поштучно,
-    # те что не получается пропустить
     bot.send_media_group(message.chat.id, photos)
 
 
+def send_hotel_photos_one_by_one(hotel_id, message, caption):
+    """
+    Для отправки фотографий поштучно, а не медиагруппой в случае ошибки.
+    :param hotel_id:
+    :param message:
+    :param caption:
+    :return:
+    """
+    photos_url = rapidapi.api_get_photos(hotel_id)
+    for single_photo_url in photos_url:
+        try:
+            bot.send_photo(message.chat.id, single_photo_url)
+        except ApiTelegramException as ex:
+            print(f'{type(ex).__name__}: {ex}')
+    bot.send_message(message.chat.id, caption)
+
+
 def history_request(message):
+    # Команда /history
+    # После ввода команды пользователю выводится история поиска отелей. Сама история
+    # содержит:
+    # 1. Команду, которую вводил пользователь.
+    # 2. Дату и время ввода команды.
+    # 3. Отели, которые были найдены.
+
     bot.send_message(message.chat.id, 'history_request')

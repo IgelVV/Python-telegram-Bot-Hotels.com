@@ -1,7 +1,7 @@
 import os
 import telebot
 from telebot import types
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
 
 class Users:  # todo сохранять информацию о поиске
@@ -20,6 +20,7 @@ class Users:  # todo сохранять информацию о поиске
         :param user_id:
         """
         self.city = None
+        self.found_cities = None
         self.city_id = None  # todo сделать сеттер с проверкой int
         self.check_in = None
         self.check_out = None
@@ -43,7 +44,11 @@ class Users:  # todo сохранять информацию о поиске
         cls.all_users[user_id] = user
 
 
-load_dotenv()
+if not find_dotenv():
+    exit('Отсутствует файл .env')
+else:
+    load_dotenv()
+
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 RAPIDAPI_KEY = os.getenv('RAPIDAPI_KEY')
 
