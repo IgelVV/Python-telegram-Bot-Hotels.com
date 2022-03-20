@@ -1,6 +1,5 @@
-# todo перенести сюда все параметры запросов к API
-#  и все сообщения пользователю (в зависимости от языка)
 from loader import RAPIDAPI_KEY
+
 
 URL_HOST = 'https://hotels4.p.rapidapi.com/'
 URL_PATHS = {

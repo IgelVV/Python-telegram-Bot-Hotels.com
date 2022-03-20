@@ -3,24 +3,23 @@ import json
 import re
 import auxiliary
 from settings import *
+from loader import Users
 
 
-def request_to_api(url, params, timeout=20):
+def request_to_api(url: str, params: dict[str, str], timeout: int = 20) -> requests.Response:
     """
     Базовая функция запроса к API
-    :param url:
-    :param params:
-    :param timeout:
-    :return:
+    :param url: строка URL адреса
+    :param params: словарь с параметрами запроса
+    :param timeout: время ожидания ответа
+    :return: объект ответа Response
     """
-    #  https://askdev.ru/q/isklyucheniy-piton-obrabotka-zaprosov-104554/
-    #  https://khashtamov.com/ru/python-requests/
     response = requests.get(url, headers=headers, params=params, timeout=timeout)
     response.raise_for_status()
     return response
 
 
-def api_get_locate(query, locale=LOCALE, currency=CURRENCY):
+def api_get_locate(query: str, locale: str = LOCALE, currency: str = CURRENCY) -> dict[str, str]:
     """
     Запрос к API Hotels для получения словаря городов с похожим названием
 
@@ -43,17 +42,19 @@ def api_get_locate(query, locale=LOCALE, currency=CURRENCY):
     return result
 
 
-def api_get_hotels(user, page_number='1', page_size="25",
-                   adults1='1', locale='ru_RU', currency='RUB'):
+# todo правильно ли делаю аннотацию? я импортировал класс Users только для этого
+def api_get_hotels(user: Users, page_number: str = '1', page_size: str = "25",
+                   adults1: str = '1', locale: str = LOCALE,
+                   currency: str = CURRENCY) -> list[dict[str, str]]:
     """
-
-    :param user:
-    :param page_number:
-    :param page_size:
-    :param adults1:
-    :param locale:
-    :param currency:
-    :return: Список словарей
+    Запрос к API Hotels для получения списка словарей отелей по ID города
+    :param user: объект класса Users
+    :param page_number: номер страницы в поисковой выдачи
+    :param page_size: размер страницы в поисковой выдачи
+    :param adults1: количество мест
+    :param locale: язык
+    :param currency: валюта
+    :return: Список словарей с информацией об отелях
     """
     url = URL_HOST + URL_PATHS['properties']
     destination_id = user.city_id
@@ -95,8 +96,14 @@ def api_get_hotels(user, page_number='1', page_size="25",
         hotel_info = {
             'hotel_name': hotel['name'],
             'hotel_id': hotel['id'],
-            'distance_from_center': hotel['landmarks'][0]['distance']
+            'distance_from_center': hotel['landmarks'][0]['distance'],
         }
+        try:
+            # иногда streetAddress нет
+            hotel_info['address'] = hotel['address']['streetAddress']
+        except KeyError as ex:
+            print(f'{type(ex).__name__} {ex} {hotel["id"]}')
+            hotel_info['address'] = ' - '
         try:
             # иногда ratePlan нет
             hotel_info['price'] = hotel['ratePlan']['price']['current'].replace(',', ' ')
@@ -107,8 +114,17 @@ def api_get_hotels(user, page_number='1', page_size="25",
     return result
 
 
-def api_get_photos(hotel_id: str, max_room_images=0, max_hotel_images=3):
-    # размер фото минимальный (чаще всего Z)
+def api_get_photos(hotel_id: str, max_room_images: int = 0, max_hotel_images: int = 3) -> list[str]:
+    """
+    Запрос к API Hotels для получения списка URL фотографий отеля.
+
+    В URL фото, полученных от API функция вставляет код размера, также полученный от API,
+    размер фото минимальный (чаще всего Z).
+    :param hotel_id: ID отеля
+    :param max_room_images: максимальное количество фотографий комнат
+    :param max_hotel_images: максимальное количество общих фотографий отеля
+    :return: список URL фотографий
+    """
     url = URL_HOST + URL_PATHS['photos']
     querystring = {"id": hotel_id}
     response = request_to_api(url, querystring)

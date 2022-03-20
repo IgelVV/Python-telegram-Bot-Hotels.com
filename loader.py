@@ -1,27 +1,21 @@
 import os
 import telebot
-from telebot import types
 from dotenv import load_dotenv, find_dotenv
 
 
-class Users:  # todo сохранять информацию о поиске
-
+# todo Нужно ли выносить класс в отдельный файл?
+class Users:
     """
-    первая строка
-
-    более длинное описание
+    Класс для хранения информации о пользователе и результатах его поиска
     """
 
     all_users = dict()
 
-    def __init__(self, user_id):
-        """
+    def __init__(self, user_id: int) -> None:
 
-        :param user_id:
-        """
         self.city = None
         self.found_cities = None
-        self.city_id = None  # todo сделать сеттер с проверкой int
+        self.city_id = None
         self.check_in = None
         self.check_out = None
         self.hotels_count = None
@@ -32,16 +26,19 @@ class Users:  # todo сохранять информацию о поиске
         self.found_hotels = None
         Users.add_user(user_id, self)
 
+# todo как аннотировать этот метод? нельзя указать -> Users
     @staticmethod
-    def get_user(user_id):
+    def get_user(user_id: int):
         if Users.all_users.get(user_id) is None:
             new_user = Users(user_id)
             return new_user
         return Users.all_users.get(user_id)
 
+# todo тот же вопрос. кажется что должно быть user: Users
     @classmethod
-    def add_user(cls, user_id, user):
+    def add_user(cls, user_id: int, user) -> None:
         cls.all_users[user_id] = user
+# todo нужно ли писать геттеры и сеттеры, если они сейчас не используются?
 
 
 if not find_dotenv():
