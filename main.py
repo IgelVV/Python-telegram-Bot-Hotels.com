@@ -1,6 +1,5 @@
-from handlers import bot  # Как должные происходить импорты?
-# по цепочке или из каждого модуля на прямую, из loader в handlers или наоборот?
+from handlers import bot  # проверить чтобы не было циклического импорта
 
-if __name__ == '__main__':  # Что тут должно быть кроме старта?
+
+if __name__ == '__main__':
     bot.infinity_polling()
-
