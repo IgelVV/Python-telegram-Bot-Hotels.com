@@ -1,9 +1,9 @@
 import requests
 import json
 import re
-import auxiliary
-from settings import *
-from loader import Users
+from utils.misc import auxiliary
+from users import Users
+from config_data.config import *
 
 
 def request_to_api(url: str, params: dict[str, str], timeout: int = 20) -> requests.Response:
@@ -146,6 +146,7 @@ def api_get_photos(hotel_id: str, max_room_images: int = 0, max_hotel_images: in
                 url_all_images.append(hotel_image_url)
                 hotel_image_count += 1
             except (KeyError, TypeError) as ex:
+                # Если найдена ошибка, то пытается получить suffix следующей картинки
                 print(f'{type(ex).__name__} {ex}')
         else:
             break

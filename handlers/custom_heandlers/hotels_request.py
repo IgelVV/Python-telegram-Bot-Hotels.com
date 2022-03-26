@@ -1,71 +1,28 @@
-import rapidapi
-import auxiliary
-from loader import *
+from loader import bot
+from users import Users
+from utils import rapidapi
+from utils.misc import auxiliary
+from keyboards.inline.destinations import destination_request
 from telegram_bot_calendar import WYearTelegramCalendar
 from datetime import date
-from requests import RequestException
 from telebot import types
+from requests import RequestException
 from telebot.apihelper import ApiTelegramException
 
 
-@bot.message_handler(commands=['start', 'help', 'lowprice', 'highprice', 'bestdeal', 'history'])
+@bot.message_handler(commands=['lowprice', 'highprice', 'bestdeal'])
 def main_request(message: types.Message) -> None:
     """
-    Запускает цепочку хэндлеров, реагирует на команды
+    Запускает цепочку хэндлеров для поиска отелей.
 
-    :param message: Объект сообщения от пользователя
+    :param message: Объект сообщения от пользователя.
     :return: None
     """
     user = Users.get_user(message.from_user.id)
     user.command = message.text
 
-    if message.text == '/start':
-        start_request(message)
-    elif message.text == '/help':
-        help_request(message)
-    elif message.text == '/history':
-        history_request(message)
-    else:
-        bot.send_message(message.chat.id, 'Введите название города')
-        bot.register_next_step_handler(message, city_request)
-
-
-def start_request(message: types.Message) -> None:
-    """
-    Ответ на команду /start
-
-    :param message: Объект сообщения от пользователя
-    :return: None
-    """
-    start_response = '''Это бот для поиска отелей на сайте Hotels.com
-    Выберете одну из следующих команд:
-    
-    /lowprice - поиск самых дешевых отелей
-    /highprice - поиск самых дорогих отелей
-    /bestdeal - поиск по расширенным параметрам
-    /history - история запросов
-    /help - список команд
-    '''
-    bot.send_message(message.chat.id, start_response)
-
-
-def help_request(message: types.Message) -> None:
-    """
-    Ответ на команду /help
-
-    :param message: Объект сообщения от пользователя
-    :return: None
-    """
-    help_response = '''
-    Список доступных команд:
-    
-    /lowprice - поиск самых дешевых отелей
-    /highprice - поиск самых дорогих отелей
-    /bestdeal - поиск отелей в диапазоне цен
-    /history - история запросов
-    /help - список команд
-    '''
-    bot.send_message(message.chat.id, help_response)
+    bot.send_message(message.chat.id, 'Введите название города')
+    bot.register_next_step_handler(message, city_request)
 
 
 def city_request(message: types.Message) -> None:
@@ -76,7 +33,6 @@ def city_request(message: types.Message) -> None:
     :param message: Объект сообщения от пользователя
     :return: None
     """
-
     user = Users.get_user(message.from_user.id)
     try:
         cities = rapidapi.api_get_locate(message.text)
@@ -84,18 +40,10 @@ def city_request(message: types.Message) -> None:
         print(f'{type(ex).__name__}: {ex}')
         bot.send_message(message.chat.id, f'При обращении к сайту Hotels произошла ошибка')
         return None
-
-    destinations = types.InlineKeyboardMarkup()
-
     user.found_cities = cities
     if len(cities):
-        for destination_id in cities.keys():
-            callback_data = f'{destination_id}<city>'
-            destinations.add(
-                types.InlineKeyboardButton(text=cities[destination_id],
-                                           callback_data=callback_data))
         bot.send_message(message.from_user.id, 'Уточните, пожалуйста:',
-                         reply_markup=destinations)
+                         reply_markup=destination_request(cities))
     else:
         bot.send_message(message.chat.id, f'По запросу "{message.text}" ничего не найдено.')
 
@@ -191,10 +139,9 @@ def callback_check_out_calendar(call: types.CallbackQuery) -> None:
 
 def price_request(message: types.Message) -> None:
     """
-    Сохраняет диапазон цен
-    Запрашивает расстояние до центра
+    Сохраняет диапазон цен. Запрашивает расстояние до центра.
 
-    :param message: Объект сообщения от пользователя
+    :param message: Объект сообщения от пользователя.
     :return: None
     """
     price_range = auxiliary.price_range_from_text(message.text)
@@ -212,9 +159,8 @@ def price_request(message: types.Message) -> None:
 
 def search_radius_request(message: types.Message) -> None:
     """
-    Сохраняет расстояние до центра
-    Запрашивает количество отелей
-    :param message: Объект сообщения от пользователя
+    Сохраняет расстояние до центра. Запрашивает количество отелей.
+    :param message: Объект сообщения от пользователя.
     :return: None
     """
     distance = auxiliary.find_number(message.text)
@@ -236,7 +182,7 @@ def search_depth_request(message: types.Message) -> None:
     """
     Сохраняет количество отелей.
     Запрашивает у пользователя выводить ли фотографии отелей.
-    :param message: Объект сообщения от пользователя
+    :param message: Объект сообщения от пользователя.
     :return: None
     """
     hotels_count = auxiliary.find_number(message.text)
@@ -255,13 +201,12 @@ def search_depth_request(message: types.Message) -> None:
         bot.register_next_step_handler(message, search_depth_request)
 
 
-# todo   * стоит ли разделить хэндлеры и коллбэки по модулям?
 @bot.callback_query_handler(func=lambda call: call.data == 'yes' or call.data == 'no')
 def callback_send_photos(call: types.CallbackQuery) -> None:
     """
     Сохраняет требуются ли фотографии.
     Запускает функцию поиска отелей.
-    :param call: объект коллбэка
+    :param call: объект коллбэка.
     :return: None
     """
     user = Users.get_user(call.from_user.id)
@@ -384,15 +329,3 @@ def send_hotel_photos_one_by_one(hotel_id: str, message: types.Message, caption:
             print(f'{type(ex).__name__}: {ex}')
     bot.send_message(message.chat.id, caption)
 
-
-# todo Нужно ли использовать logging?
-# todo как использовать базу данных? Хранить в ней найденные отели и введенные пользователем данные?
-def history_request(message: types.Message) -> None:
-    # Команда /history
-    # После ввода команды пользователю выводится история поиска отелей. Сама история
-    # содержит:
-    # 1. Команду, которую вводил пользователь.
-    # 2. Дату и время ввода команды.
-    # 3. Отели, которые были найдены.
-
-    bot.send_message(message.chat.id, 'history_request')
