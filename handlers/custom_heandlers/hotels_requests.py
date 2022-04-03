@@ -1,5 +1,6 @@
+import database
 from loader import bot
-from users import Users
+from users import User
 from utils import rapidapi
 from utils.misc import auxiliary
 from keyboards.inline.destinations import destination_request
@@ -18,7 +19,7 @@ def main_request(message: types.Message) -> None:
     :param message: Объект сообщения от пользователя.
     :return: None
     """
-    user = Users.get_user(message.from_user.id)
+    user = User.get_user(message.from_user.id)
     user.command = message.text
 
     bot.send_message(message.chat.id, 'Введите название города')
@@ -33,7 +34,7 @@ def city_request(message: types.Message) -> None:
     :param message: Объект сообщения от пользователя
     :return: None
     """
-    user = Users.get_user(message.from_user.id)
+    user = User.get_user(message.from_user.id)
     try:
         cities = rapidapi.api_get_locate(message.text)
     except (RequestException, KeyError, TypeError) as ex:
@@ -57,13 +58,14 @@ def callback_query_city(call: types.CallbackQuery) -> None:
     :param call: объект коллбэка
     :return: None
     """
-    user = Users.get_user(call.from_user.id)
+    user = User.get_user(call.from_user.id)
     user.city_id = auxiliary.remove_tags(call.data)
+    user.city = user.found_cities[user.city_id]
 
     bot.answer_callback_query(call.id, f"Выбор учтён")
     bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
-    bot.send_message(call.from_user.id, f"{user.found_cities[user.city_id]}")
+    bot.send_message(call.from_user.id, f"{user.city}")
 
     calendar, step = WYearTelegramCalendar(calendar_id='in',
                                            min_date=date.today(),
@@ -89,7 +91,7 @@ def callback_check_in_calendar(call: types.CallbackQuery) -> None:
                               call.message.message_id,
                               reply_markup=key)
     elif result:
-        user = Users.get_user(call.from_user.id)
+        user = User.get_user(call.from_user.id)
         user.check_in = result
         bot.edit_message_text(f"Вы выбрали {result}",
                               call.message.chat.id,
@@ -110,7 +112,7 @@ def callback_check_out_calendar(call: types.CallbackQuery) -> None:
     :param call: объект коллбэка
     :return: None
     """
-    user = Users.get_user(call.from_user.id)
+    user = User.get_user(call.from_user.id)
     result, key, step = WYearTelegramCalendar(calendar_id='out',
                                               min_date=user.check_in,
                                               locale='ru').process(call.data)
@@ -120,7 +122,7 @@ def callback_check_out_calendar(call: types.CallbackQuery) -> None:
                               call.message.message_id,
                               reply_markup=key)
     elif result:
-        user = Users.get_user(call.from_user.id)
+        user = User.get_user(call.from_user.id)
         user.check_out = result
         bot.edit_message_text(f"Вы выбрали {result}",
                               call.message.chat.id,
@@ -146,10 +148,10 @@ def price_request(message: types.Message) -> None:
     """
     price_range = auxiliary.price_range_from_text(message.text)
     if len(price_range) == 2:
-        user = Users.get_user(message.from_user.id)
+        user = User.get_user(message.from_user.id)
         user.price_range = price_range
         bot.send_message(message.chat.id, f'{user.price_range}')
-        bot.send_message(message.chat.id, 'Введите расстояние от центра в километрах')
+        bot.send_message(message.chat.id, 'Введите расстояние от центра города в километрах')
         bot.register_next_step_handler(message, search_radius_request)
     else:
         bot.send_message(message.chat.id, 'Запишите начальную и конечную цены в формате '
@@ -165,7 +167,7 @@ def search_radius_request(message: types.Message) -> None:
     """
     distance = auxiliary.find_number(message.text)
     if distance is not None:
-        user = Users.get_user(message.from_user.id)
+        user = User.get_user(message.from_user.id)
         user.distance = distance
         bot.send_message(message.chat.id, user.distance)
         bot.send_message(message.chat.id, 'Введите количество отелей, '
@@ -187,7 +189,7 @@ def search_depth_request(message: types.Message) -> None:
     """
     hotels_count = auxiliary.find_number(message.text)
     if hotels_count is not None and 1 <= hotels_count <= 10:
-        user = Users.get_user(message.from_user.id)
+        user = User.get_user(message.from_user.id)
         user.hotels_count = hotels_count
 
         yes_no_question = types.InlineKeyboardMarkup()
@@ -209,7 +211,7 @@ def callback_send_photos(call: types.CallbackQuery) -> None:
     :param call: объект коллбэка.
     :return: None
     """
-    user = Users.get_user(call.from_user.id)
+    user = User.get_user(call.from_user.id)
     if call.data == 'yes':
         user.with_photos = True
     else:
@@ -234,7 +236,7 @@ def send_result(message: types.Message) -> None:
     :param message: Объект сообщения от пользователя.
     :return: None
     """
-    user = Users.get_user(message.chat.id)
+    user = User.get_user(message.chat.id)
     try:
         found_hotels = rapidapi.api_get_hotels(user)
     except (RequestException, KeyError, TypeError) as ex:
@@ -245,7 +247,6 @@ def send_result(message: types.Message) -> None:
 
     count = 0
     for hotel in found_hotels:
-
         if count < user.hotels_count:
             distance = auxiliary.find_number(hotel['distance_from_center'])
             if user.command == r'/bestdeal':
@@ -262,10 +263,11 @@ def send_result(message: types.Message) -> None:
                 f"расстояние: {hotel['distance_from_center']}, "
                 f"\nцена: {hotel['price']}, "
                 f"\nадрес: {hotel['address']}"
-                f"\nURL: https://ru.hotels.com/ho{hotel['hotel_id']}"
+                f"\nURL: {hotel['url']}"
             )
 
             if user.with_photos:
+                count += 1
                 try:
                     send_hotel_info_with_photos(hotel['hotel_id'], message, hotel_info)
                 except (RequestException, KeyError, TypeError) as ex:
@@ -284,10 +286,14 @@ def send_result(message: types.Message) -> None:
                         count -= 1
             else:
                 bot.send_message(message.chat.id, hotel_info)
-            count += 1
-
+                count += 1
         else:
             break
+    try:
+        database.save_history(user)
+    except Exception as ex:
+        print(f'{type(ex).__name__}: {ex.__str__()} (send_result database.save_history(user)')
+
     bot.send_message(message.chat.id, f'Поиск завершён, найдено отелей: {count}')
 
 

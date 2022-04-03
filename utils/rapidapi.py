@@ -2,7 +2,7 @@ import requests
 import json
 import re
 from utils.misc import auxiliary
-from users import Users
+from users import User
 from config_data.config import *
 
 
@@ -42,8 +42,7 @@ def api_get_locate(query: str, locale: str = LOCALE, currency: str = CURRENCY) -
     return result
 
 
-# todo правильно ли делаю аннотацию? я импортировал класс Users только для этого
-def api_get_hotels(user: Users, page_number: str = '1', page_size: str = "25",
+def api_get_hotels(user: User, page_number: str = '1', page_size: str = "25",
                    adults1: str = '1', locale: str = LOCALE,
                    currency: str = CURRENCY) -> list[dict[str, str]]:
     """
@@ -97,6 +96,7 @@ def api_get_hotels(user: Users, page_number: str = '1', page_size: str = "25",
             'hotel_name': hotel['name'],
             'hotel_id': hotel['id'],
             'distance_from_center': hotel['landmarks'][0]['distance'],
+            'url': f'https://ru.hotels.com/ho{hotel["id"]}'
         }
         try:
             # иногда streetAddress нет

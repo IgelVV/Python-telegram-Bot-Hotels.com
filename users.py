@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-class Users:
+class User:
     """
     Класс для хранения информации о пользователе и результатах его поиска
     """
@@ -11,6 +11,7 @@ class Users:
     all_users = dict()
 
     def __init__(self, user_id: int) -> None:
+        self.user_id = user_id
         self.city = None
         self.found_cities = None
         self.city_id = None
@@ -18,29 +19,30 @@ class Users:
         self.check_out = None
         self.hotels_count = None
         self.command = None
-        self.price_range = None
+        self.price_range = [None, None]
         self.distance = None
         self.with_photos = None
         self.found_hotels = None
-        Users.add_user(user_id, self)
+        User.add_user(user_id, self)
 
     @staticmethod
-    def get_user(user_id: int) -> Users:
+    def get_user(user_id: int) -> User:
         """
-
-        :param user_id:
-        :return:
+        Ищет в поле all_users и возвращает экземпляр класса,
+        или создает, сохраняет и возвращает, если не находит.
+        :param user_id: id пользователя.
+        :return: экземпляр класса.
         """
-        if Users.all_users.get(user_id) is None:
-            new_user = Users(user_id)
+        if User.all_users.get(user_id) is None:
+            new_user = User(user_id)
             return new_user
-        return Users.all_users.get(user_id)
+        return User.all_users.get(user_id)
 
     @classmethod
-    def add_user(cls, user_id: int, user: Users) -> None:
+    def add_user(cls, user_id: int, user: User) -> None:
         """
-
-        :param user_id:
+        Сохраняет экземпляр класса в поле all_users.
+        :param user_id: id пользователя
         :param user:
         :return:
         """

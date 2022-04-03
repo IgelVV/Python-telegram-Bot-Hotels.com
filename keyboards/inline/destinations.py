@@ -9,11 +9,11 @@ def destination_request(cities: dict[str, str]) -> InlineKeyboardMarkup:
     :param cities: Список городов {ID города: Название}
     :return: Inline клавиатуру
     """
-    destinations = InlineKeyboardMarkup()
+    keyboard = InlineKeyboardMarkup()
 
     for destination_id in cities.keys():
         callback_data = f'{destination_id}<city>'
-        destinations.add(
+        keyboard.add(
             InlineKeyboardButton(text=cities[destination_id],
                                  callback_data=callback_data))
-    return destinations
+    return keyboard

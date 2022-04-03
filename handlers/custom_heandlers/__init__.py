@@ -1,2 +1,2 @@
-from . import hotels_request
+from . import hotels_requests
 from . import history
