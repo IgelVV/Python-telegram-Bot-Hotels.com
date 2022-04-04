@@ -1,0 +1,5 @@
+pyTelegramBotAPI==4.4.0
+python-dotenv
+requests
+python-telegram-bot-calendar
+peewee

@@ -1,71 +1,29 @@
-import rapidapi
-import auxiliary
-from loader import *
+import database
+from loader import bot
+from users import User
+from utils import rapidapi
+from utils.misc import auxiliary
+from keyboards.inline.destinations import destination_request
 from telegram_bot_calendar import WYearTelegramCalendar
 from datetime import date
-from requests import RequestException
 from telebot import types
+from requests import RequestException
 from telebot.apihelper import ApiTelegramException
 
 
-@bot.message_handler(commands=['start', 'help', 'lowprice', 'highprice', 'bestdeal', 'history'])
+@bot.message_handler(commands=['lowprice', 'highprice', 'bestdeal'])
 def main_request(message: types.Message) -> None:
     """
-    Запускает цепочку хэндлеров, реагирует на команды
+    Запускает цепочку хэндлеров для поиска отелей.
 
-    :param message: Объект сообщения от пользователя
+    :param message: Объект сообщения от пользователя.
     :return: None
     """
-    user = Users.get_user(message.from_user.id)
+    user = User.get_user(message.from_user.id)
     user.command = message.text
 
-    if message.text == '/start':
-        start_request(message)
-    elif message.text == '/help':
-        help_request(message)
-    elif message.text == '/history':
-        history_request(message)
-    else:
-        bot.send_message(message.chat.id, 'Введите название города')
-        bot.register_next_step_handler(message, city_request)
-
-
-def start_request(message: types.Message) -> None:
-    """
-    Ответ на команду /start
-
-    :param message: Объект сообщения от пользователя
-    :return: None
-    """
-    start_response = '''Это бот для поиска отелей на сайте Hotels.com
-    Выберете одну из следующих команд:
-    
-    /lowprice - поиск самых дешевых отелей
-    /highprice - поиск самых дорогих отелей
-    /bestdeal - поиск по расширенным параметрам
-    /history - история запросов
-    /help - список команд
-    '''
-    bot.send_message(message.chat.id, start_response)
-
-
-def help_request(message: types.Message) -> None:
-    """
-    Ответ на команду /help
-
-    :param message: Объект сообщения от пользователя
-    :return: None
-    """
-    help_response = '''
-    Список доступных команд:
-    
-    /lowprice - поиск самых дешевых отелей
-    /highprice - поиск самых дорогих отелей
-    /bestdeal - поиск отелей в диапазоне цен
-    /history - история запросов
-    /help - список команд
-    '''
-    bot.send_message(message.chat.id, help_response)
+    bot.send_message(message.chat.id, 'Введите название города')
+    bot.register_next_step_handler(message, city_request)
 
 
 def city_request(message: types.Message) -> None:
@@ -76,26 +34,17 @@ def city_request(message: types.Message) -> None:
     :param message: Объект сообщения от пользователя
     :return: None
     """
-
-    user = Users.get_user(message.from_user.id)
+    user = User.get_user(message.from_user.id)
     try:
         cities = rapidapi.api_get_locate(message.text)
     except (RequestException, KeyError, TypeError) as ex:
         print(f'{type(ex).__name__}: {ex}')
         bot.send_message(message.chat.id, f'При обращении к сайту Hotels произошла ошибка')
         return None
-
-    destinations = types.InlineKeyboardMarkup()
-
     user.found_cities = cities
     if len(cities):
-        for destination_id in cities.keys():
-            callback_data = f'{destination_id}<city>'
-            destinations.add(
-                types.InlineKeyboardButton(text=cities[destination_id],
-                                           callback_data=callback_data))
         bot.send_message(message.from_user.id, 'Уточните, пожалуйста:',
-                         reply_markup=destinations)
+                         reply_markup=destination_request(cities))
     else:
         bot.send_message(message.chat.id, f'По запросу "{message.text}" ничего не найдено.')
 
@@ -109,13 +58,14 @@ def callback_query_city(call: types.CallbackQuery) -> None:
     :param call: объект коллбэка
     :return: None
     """
-    user = Users.get_user(call.from_user.id)
+    user = User.get_user(call.from_user.id)
     user.city_id = auxiliary.remove_tags(call.data)
+    user.city = user.found_cities[user.city_id]
 
     bot.answer_callback_query(call.id, f"Выбор учтён")
     bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id)
     bot.delete_message(call.message.chat.id, call.message.message_id)
-    bot.send_message(call.from_user.id, f"{user.found_cities[user.city_id]}")
+    bot.send_message(call.from_user.id, f"{user.city}")
 
     calendar, step = WYearTelegramCalendar(calendar_id='in',
                                            min_date=date.today(),
@@ -141,7 +91,7 @@ def callback_check_in_calendar(call: types.CallbackQuery) -> None:
                               call.message.message_id,
                               reply_markup=key)
     elif result:
-        user = Users.get_user(call.from_user.id)
+        user = User.get_user(call.from_user.id)
         user.check_in = result
         bot.edit_message_text(f"Вы выбрали {result}",
                               call.message.chat.id,
@@ -162,7 +112,7 @@ def callback_check_out_calendar(call: types.CallbackQuery) -> None:
     :param call: объект коллбэка
     :return: None
     """
-    user = Users.get_user(call.from_user.id)
+    user = User.get_user(call.from_user.id)
     result, key, step = WYearTelegramCalendar(calendar_id='out',
                                               min_date=user.check_in,
                                               locale='ru').process(call.data)
@@ -172,7 +122,7 @@ def callback_check_out_calendar(call: types.CallbackQuery) -> None:
                               call.message.message_id,
                               reply_markup=key)
     elif result:
-        user = Users.get_user(call.from_user.id)
+        user = User.get_user(call.from_user.id)
         user.check_out = result
         bot.edit_message_text(f"Вы выбрали {result}",
                               call.message.chat.id,
@@ -191,18 +141,17 @@ def callback_check_out_calendar(call: types.CallbackQuery) -> None:
 
 def price_request(message: types.Message) -> None:
     """
-    Сохраняет диапазон цен
-    Запрашивает расстояние до центра
+    Сохраняет диапазон цен. Запрашивает расстояние до центра.
 
-    :param message: Объект сообщения от пользователя
+    :param message: Объект сообщения от пользователя.
     :return: None
     """
     price_range = auxiliary.price_range_from_text(message.text)
     if len(price_range) == 2:
-        user = Users.get_user(message.from_user.id)
+        user = User.get_user(message.from_user.id)
         user.price_range = price_range
         bot.send_message(message.chat.id, f'{user.price_range}')
-        bot.send_message(message.chat.id, 'Введите расстояние от центра в километрах')
+        bot.send_message(message.chat.id, 'Введите расстояние от центра города в километрах')
         bot.register_next_step_handler(message, search_radius_request)
     else:
         bot.send_message(message.chat.id, 'Запишите начальную и конечную цены в формате '
@@ -212,14 +161,13 @@ def price_request(message: types.Message) -> None:
 
 def search_radius_request(message: types.Message) -> None:
     """
-    Сохраняет расстояние до центра
-    Запрашивает количество отелей
-    :param message: Объект сообщения от пользователя
+    Сохраняет расстояние до центра. Запрашивает количество отелей.
+    :param message: Объект сообщения от пользователя.
     :return: None
     """
     distance = auxiliary.find_number(message.text)
     if distance is not None:
-        user = Users.get_user(message.from_user.id)
+        user = User.get_user(message.from_user.id)
         user.distance = distance
         bot.send_message(message.chat.id, user.distance)
         bot.send_message(message.chat.id, 'Введите количество отелей, '
@@ -236,12 +184,12 @@ def search_depth_request(message: types.Message) -> None:
     """
     Сохраняет количество отелей.
     Запрашивает у пользователя выводить ли фотографии отелей.
-    :param message: Объект сообщения от пользователя
+    :param message: Объект сообщения от пользователя.
     :return: None
     """
     hotels_count = auxiliary.find_number(message.text)
     if hotels_count is not None and 1 <= hotels_count <= 10:
-        user = Users.get_user(message.from_user.id)
+        user = User.get_user(message.from_user.id)
         user.hotels_count = hotels_count
 
         yes_no_question = types.InlineKeyboardMarkup()
@@ -255,16 +203,15 @@ def search_depth_request(message: types.Message) -> None:
         bot.register_next_step_handler(message, search_depth_request)
 
 
-# todo   * стоит ли разделить хэндлеры и коллбэки по модулям?
 @bot.callback_query_handler(func=lambda call: call.data == 'yes' or call.data == 'no')
 def callback_send_photos(call: types.CallbackQuery) -> None:
     """
     Сохраняет требуются ли фотографии.
     Запускает функцию поиска отелей.
-    :param call: объект коллбэка
+    :param call: объект коллбэка.
     :return: None
     """
-    user = Users.get_user(call.from_user.id)
+    user = User.get_user(call.from_user.id)
     if call.data == 'yes':
         user.with_photos = True
     else:
@@ -289,7 +236,7 @@ def send_result(message: types.Message) -> None:
     :param message: Объект сообщения от пользователя.
     :return: None
     """
-    user = Users.get_user(message.chat.id)
+    user = User.get_user(message.chat.id)
     try:
         found_hotels = rapidapi.api_get_hotels(user)
     except (RequestException, KeyError, TypeError) as ex:
@@ -300,7 +247,6 @@ def send_result(message: types.Message) -> None:
 
     count = 0
     for hotel in found_hotels:
-
         if count < user.hotels_count:
             distance = auxiliary.find_number(hotel['distance_from_center'])
             if user.command == r'/bestdeal':
@@ -317,10 +263,11 @@ def send_result(message: types.Message) -> None:
                 f"расстояние: {hotel['distance_from_center']}, "
                 f"\nцена: {hotel['price']}, "
                 f"\nадрес: {hotel['address']}"
-                f"\nURL: https://ru.hotels.com/ho{hotel['hotel_id']}"
+                f"\nURL: {hotel['url']}"
             )
 
             if user.with_photos:
+                count += 1
                 try:
                     send_hotel_info_with_photos(hotel['hotel_id'], message, hotel_info)
                 except (RequestException, KeyError, TypeError) as ex:
@@ -339,10 +286,14 @@ def send_result(message: types.Message) -> None:
                         count -= 1
             else:
                 bot.send_message(message.chat.id, hotel_info)
-            count += 1
-
+                count += 1
         else:
             break
+    try:
+        database.save_history(user)
+    except Exception as ex:
+        print(f'{type(ex).__name__}: {ex.__str__()} (send_result database.save_history(user)')
+
     bot.send_message(message.chat.id, f'Поиск завершён, найдено отелей: {count}')
 
 
@@ -384,15 +335,3 @@ def send_hotel_photos_one_by_one(hotel_id: str, message: types.Message, caption:
             print(f'{type(ex).__name__}: {ex}')
     bot.send_message(message.chat.id, caption)
 
-
-# todo Нужно ли использовать logging?
-# todo как использовать базу данных? Хранить в ней найденные отели и введенные пользователем данные?
-def history_request(message: types.Message) -> None:
-    # Команда /history
-    # После ввода команды пользователю выводится история поиска отелей. Сама история
-    # содержит:
-    # 1. Команду, которую вводил пользователь.
-    # 2. Дату и время ввода команды.
-    # 3. Отели, которые были найдены.
-
-    bot.send_message(message.chat.id, 'history_request')
