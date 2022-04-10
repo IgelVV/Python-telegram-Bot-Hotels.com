@@ -1,6 +1,9 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from logger import logger_wraps, logger
 
 
+@logger_wraps()
+@logger.catch
 def destination_request(cities: dict[str, str]) -> InlineKeyboardMarkup:
     """
     Формирует и возвращает Inline клавиатуру, состоящую из названия городов.
