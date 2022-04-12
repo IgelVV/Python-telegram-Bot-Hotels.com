@@ -1,11 +1,20 @@
 import functools
 import sys
 from loguru import logger
+from typing import Callable
 
 
-def logger_wraps(*, entry=True, exit=False, level="DEBUG"):
+def logger_wraps(*, entry: bool = True, exit: bool = False, level: str = "DEBUG") -> Callable:
+    """
+    Декоратор для логирования запуска и завершения функции.
 
-    def wrapper(func):
+    :param entry: логирование при старте.
+    :param exit: логирование при завершении.
+    :param level: уровень логирования.
+    :return: оберточная функция.
+    """
+
+    def wrapper(func: Callable) -> Callable:
         name = func.__name__
 
         @functools.wraps(func)
