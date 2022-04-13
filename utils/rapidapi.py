@@ -1,11 +1,14 @@
 import requests
 import json
 import re
+import config_data.config as config
 from utils.misc import auxiliary
 from users import User
-from config_data.config import *
+from logger import logger_wraps, logger
 
 
+@logger_wraps()
+@logger.catch
 def request_to_api(url: str, params: dict[str, str], timeout: int = 20) -> requests.Response:
     """
     Базовая функция запроса к API
@@ -14,12 +17,15 @@ def request_to_api(url: str, params: dict[str, str], timeout: int = 20) -> reque
     :param timeout: время ожидания ответа
     :return: объект ответа Response
     """
-    response = requests.get(url, headers=headers, params=params, timeout=timeout)
+    response = requests.get(url, headers=config.headers, params=params, timeout=timeout)
     response.raise_for_status()
     return response
 
 
-def api_get_locate(query: str, locale: str = LOCALE, currency: str = CURRENCY) -> dict[str, str]:
+@logger_wraps()
+@logger.catch
+def api_get_locate(query: str, locale: str = config.LOCALE,
+                   currency: str = config.CURRENCY) -> dict[str, str]:
     """
     Запрос к API Hotels для получения словаря городов с похожим названием
 
@@ -29,7 +35,7 @@ def api_get_locate(query: str, locale: str = LOCALE, currency: str = CURRENCY) -
     :return: Словарь {ID города: название города}
     """
 
-    url = URL_HOST + URL_PATHS['locations']
+    url = config.URL_HOST + config.URL_PATHS['locations']
     querystring = {"query": query, "locale": locale, "currency": currency}
     response = request_to_api(url, querystring)
     pattern = r'(?<="CITY_GROUP",).+?[\]]'
@@ -42,9 +48,11 @@ def api_get_locate(query: str, locale: str = LOCALE, currency: str = CURRENCY) -
     return result
 
 
+@logger_wraps()
+@logger.catch
 def api_get_hotels(user: User, page_number: str = '1', page_size: str = "25",
-                   adults1: str = '1', locale: str = LOCALE,
-                   currency: str = CURRENCY) -> list[dict[str, str]]:
+                   adults1: str = '1', locale: str = config.LOCALE,
+                   currency: str = config.CURRENCY) -> list[dict[str, str]]:
     """
     Запрос к API Hotels для получения списка словарей отелей по ID города
     :param user: объект класса Users
@@ -55,7 +63,7 @@ def api_get_hotels(user: User, page_number: str = '1', page_size: str = "25",
     :param currency: валюта
     :return: Список словарей с информацией об отелях
     """
-    url = URL_HOST + URL_PATHS['properties']
+    url = config.URL_HOST + config.URL_PATHS['properties']
     destination_id = user.city_id
     check_in = user.check_in
     check_out = user.check_out
@@ -72,13 +80,13 @@ def api_get_hotels(user: User, page_number: str = '1', page_size: str = "25",
     }
 
     if user.command == 'lowprice':
-        sort_order = QUERY_PARAMETERS["sortOrder"]["lowprice"]
+        sort_order = config.QUERY_PARAMETERS["sortOrder"]["lowprice"]
         querystring["sortOrder"] = sort_order
     elif user.command == 'highprice':
-        sort_order = QUERY_PARAMETERS["sortOrder"]['highprice']
+        sort_order = config.QUERY_PARAMETERS["sortOrder"]['highprice']
         querystring["sortOrder"] = sort_order
     elif user.command == 'bestdeal':
-        sort_order = QUERY_PARAMETERS["sortOrder"]['bestdeal']
+        sort_order = config.QUERY_PARAMETERS["sortOrder"]['bestdeal']
         price_min = user.price_range[0]
         price_max = user.price_range[1]
         querystring["sortOrder"] = sort_order
@@ -102,18 +110,20 @@ def api_get_hotels(user: User, page_number: str = '1', page_size: str = "25",
             # иногда streetAddress нет
             hotel_info['address'] = hotel['address']['streetAddress']
         except KeyError as ex:
-            print(f'{type(ex).__name__} {ex} {hotel["id"]}')
+            logger.error(f'{type(ex).__name__}: {ex} {hotel["id"]}')
             hotel_info['address'] = ' - '
         try:
             # иногда ratePlan нет
             hotel_info['price'] = hotel['ratePlan']['price']['current'].replace(',', ' ')
         except KeyError as ex:
-            print(f'{type(ex).__name__} {ex} {hotel["id"]}')
+            logger.error(f'{type(ex).__name__}: {ex} {hotel["id"]}')
             hotel_info['price'] = ' - '
         result.append(hotel_info)
     return result
 
 
+@logger_wraps()
+@logger.catch
 def api_get_photos(hotel_id: str, max_room_images: int = 0, max_hotel_images: int = 3) -> list[str]:
     """
     Запрос к API Hotels для получения списка URL фотографий отеля.
@@ -125,7 +135,7 @@ def api_get_photos(hotel_id: str, max_room_images: int = 0, max_hotel_images: in
     :param max_hotel_images: максимальное количество общих фотографий отеля
     :return: список URL фотографий
     """
-    url = URL_HOST + URL_PATHS['photos']
+    url = config.URL_HOST + config.URL_PATHS['photos']
     querystring = {"id": hotel_id}
     response = request_to_api(url, querystring)
 
@@ -147,7 +157,7 @@ def api_get_photos(hotel_id: str, max_room_images: int = 0, max_hotel_images: in
                 hotel_image_count += 1
             except (KeyError, TypeError) as ex:
                 # Если найдена ошибка, то пытается получить suffix следующей картинки
-                print(f'{type(ex).__name__} {ex}')
+                logger.error(f'{type(ex).__name__}: {ex}')
         else:
             break
     for room in find['roomImages']:
@@ -160,7 +170,7 @@ def api_get_photos(hotel_id: str, max_room_images: int = 0, max_hotel_images: in
                 url_all_images.append(room_image_url)
                 room_image_count += 1
             except (KeyError, TypeError) as ex:
-                print(f'{type(ex).__name__} {ex}')
+                logger.error(f'{type(ex).__name__}: {ex}')
         else:
             break
     return url_all_images

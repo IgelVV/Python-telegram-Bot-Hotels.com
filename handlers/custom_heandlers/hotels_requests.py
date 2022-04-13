@@ -9,9 +9,12 @@ from datetime import date
 from telebot import types
 from requests import RequestException
 from telebot.apihelper import ApiTelegramException
+from logger import logger_wraps, logger
 
 
 @bot.message_handler(commands=['lowprice', 'highprice', 'bestdeal'])
+@logger_wraps()
+@logger.catch
 def main_request(message: types.Message) -> None:
     """
     Запускает цепочку хэндлеров для поиска отелей.
@@ -26,6 +29,8 @@ def main_request(message: types.Message) -> None:
     bot.register_next_step_handler(message, city_request)
 
 
+@logger_wraps()
+@logger.catch
 def city_request(message: types.Message) -> None:
     """
     Находит на сайте Hotels.com города по запросу и выводит в inline клавиатуру для уточнения.
@@ -38,8 +43,8 @@ def city_request(message: types.Message) -> None:
     try:
         cities = rapidapi.api_get_locate(message.text)
     except (RequestException, KeyError, TypeError) as ex:
-        print(f'{type(ex).__name__}: {ex}')
-        bot.send_message(message.chat.id, f'При обращении к сайту Hotels произошла ошибка')
+        bot.send_message(message.chat.id, 'При обращении к сайту Hotels произошла ошибка')
+        logger.error(f'{type(ex).__name__}: {ex}')
         return None
     user.found_cities = cities
     if len(cities):
@@ -50,6 +55,8 @@ def city_request(message: types.Message) -> None:
 
 
 @bot.callback_query_handler(func=lambda call: call.data.endswith("<city>"))
+@logger_wraps()
+@logger.catch
 def callback_query_city(call: types.CallbackQuery) -> None:
     """
     Сохраняет выбор города после уточнения.
@@ -74,6 +81,8 @@ def callback_query_city(call: types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=WYearTelegramCalendar.func(calendar_id='in'))
+@logger_wraps()
+@logger.catch
 def callback_check_in_calendar(call: types.CallbackQuery) -> None:
     """
     Сохраняет выбор даты заезда
@@ -103,6 +112,8 @@ def callback_check_in_calendar(call: types.CallbackQuery) -> None:
 
 
 @bot.callback_query_handler(func=WYearTelegramCalendar.func(calendar_id='out'))
+@logger_wraps()
+@logger.catch
 def callback_check_out_calendar(call: types.CallbackQuery) -> None:
     """
     Сохраняет выбор даты отъезда
@@ -139,6 +150,8 @@ def callback_check_out_calendar(call: types.CallbackQuery) -> None:
             bot.register_next_step_handler(message, search_depth_request)
 
 
+@logger_wraps()
+@logger.catch
 def price_request(message: types.Message) -> None:
     """
     Сохраняет диапазон цен. Запрашивает расстояние до центра.
@@ -159,6 +172,8 @@ def price_request(message: types.Message) -> None:
         bot.register_next_step_handler(message, price_request)
 
 
+@logger_wraps()
+@logger.catch
 def search_radius_request(message: types.Message) -> None:
     """
     Сохраняет расстояние до центра. Запрашивает количество отелей.
@@ -180,6 +195,8 @@ def search_radius_request(message: types.Message) -> None:
         bot.register_next_step_handler(message, search_radius_request)
 
 
+@logger_wraps()
+@logger.catch
 def search_depth_request(message: types.Message) -> None:
     """
     Сохраняет количество отелей.
@@ -204,6 +221,8 @@ def search_depth_request(message: types.Message) -> None:
 
 
 @bot.callback_query_handler(func=lambda call: call.data == 'yes' or call.data == 'no')
+@logger_wraps()
+@logger.catch
 def callback_send_photos(call: types.CallbackQuery) -> None:
     """
     Сохраняет требуются ли фотографии.
@@ -224,6 +243,8 @@ def callback_send_photos(call: types.CallbackQuery) -> None:
     send_result(call.message)
 
 
+@logger_wraps()
+@logger.catch
 def send_result(message: types.Message) -> None:
     """
     Обращается к API Hotels, получает данные подходящих по запросу отелей и выводит пользователю.
@@ -240,8 +261,7 @@ def send_result(message: types.Message) -> None:
     try:
         found_hotels = rapidapi.api_get_hotels(user)
     except (RequestException, KeyError, TypeError) as ex:
-        print(f'{type(ex).__name__}: {ex} (send_result api_get_hotels)')
-        bot.send_message(message.chat.id, f'При обращении к сайту Hotels произошла ошибка')
+        logger.error(f'{type(ex).__name__}: {ex}')
         return None
     user.found_hotels = list()
 
@@ -271,16 +291,16 @@ def send_result(message: types.Message) -> None:
                 try:
                     send_hotel_info_with_photos(hotel['hotel_id'], message, hotel_info)
                 except (RequestException, KeyError, TypeError) as ex:
-                    print(f'{type(ex).__name__}: {ex} (send_result send_hotel_info_with_photos')
+                    logger.error(f'{type(ex).__name__}: {ex}')
                     bot.send_message(message.chat.id,
                                      f'При обращении к сайту Hotels произошла ошибка')
                     count -= 1
                 except ApiTelegramException as ex:
-                    print(f'{type(ex).__name__}: {ex}')
+                    logger.error(f'{type(ex).__name__}: {ex}')
                     try:
                         send_hotel_photos_one_by_one(hotel['hotel_id'], message, hotel_info)
                     except (RequestException, KeyError, TypeError) as ex:
-                        print(f'{type(ex).__name__}: {ex} send_result send_hotel_photos_one_by_one')
+                        logger.error(f'{type(ex).__name__}: {ex}')
                         bot.send_message(message.chat.id,
                                          f'При обращении к сайту Hotels произошла ошибка')
                         count -= 1
@@ -292,11 +312,13 @@ def send_result(message: types.Message) -> None:
     try:
         database.save_history(user)
     except Exception as ex:
-        print(f'{type(ex).__name__}: {ex.__str__()} (send_result database.save_history(user)')
+        logger.error(f'{type(ex).__name__}: {ex.__str__()}')
 
     bot.send_message(message.chat.id, f'Поиск завершён, найдено отелей: {count}')
 
 
+@logger_wraps()
+@logger.catch
 def send_hotel_info_with_photos(hotel_id: str, message: types.Message, caption: str) -> None:
     """
     Формирует медиагруппу из фотографий и подписи, и отправляет пользователю
@@ -318,6 +340,8 @@ def send_hotel_info_with_photos(hotel_id: str, message: types.Message, caption: 
     bot.send_media_group(message.chat.id, photos)
 
 
+@logger_wraps()
+@logger.catch
 def send_hotel_photos_one_by_one(hotel_id: str, message: types.Message, caption: str) -> None:
     """
     Для отправки фотографий поштучно, а не медиагруппой.
@@ -332,6 +356,6 @@ def send_hotel_photos_one_by_one(hotel_id: str, message: types.Message, caption:
         try:
             bot.send_photo(message.chat.id, single_photo_url)
         except ApiTelegramException as ex:
-            print(f'{type(ex).__name__}: {ex}')
+            logger.error(f'{type(ex).__name__}: {ex}')
     bot.send_message(message.chat.id, caption)
 

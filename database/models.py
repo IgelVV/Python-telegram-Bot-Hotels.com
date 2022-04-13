@@ -1,12 +1,12 @@
-from peewee import *
+import peewee
 from datetime import datetime
 import os.path
 
 
-db = SqliteDatabase(os.path.join('database', 'bot_history.db'))
+db = peewee.SqliteDatabase(os.path.join('database', 'bot_history.db'))
 
 
-class BaseModel(Model):
+class BaseModel(peewee.Model):
     """
     Базовая модель для наследования
     """
@@ -21,19 +21,19 @@ class Request(BaseModel):
     """
     Класс описывающий таблицу requests.
     """
-    request_id = AutoField()
-    request_time = DateTimeField(default=datetime.now())
-    user_id = IntegerField()
-    command = CharField()
-    city_id = CharField()
-    city_name = CharField()
-    check_in = DateField()
-    check_out = DateField()
-    hotels_count = IntegerField()
-    price_min = IntegerField(null=True)
-    price_max = IntegerField(null=True)
-    distance = IntegerField(null=True)
-    with_photos = BooleanField()
+    request_id = peewee.AutoField()
+    request_time = peewee.DateTimeField(default=datetime.now())
+    user_id = peewee.IntegerField()
+    command = peewee.CharField()
+    city_id = peewee.CharField()
+    city_name = peewee.CharField()
+    check_in = peewee.DateField()
+    check_out = peewee.DateField()
+    hotels_count = peewee.IntegerField()
+    price_min = peewee.IntegerField(null=True)
+    price_max = peewee.IntegerField(null=True)
+    distance = peewee.IntegerField(null=True)
+    with_photos = peewee.BooleanField()
 
     class Meta:
         """
@@ -46,13 +46,13 @@ class Hotel(BaseModel):
     """
     Класс описывающий таблицу hotels.
     """
-    hotel_id = CharField()
-    hotel_name = CharField()
-    distance_from_center = CharField()
-    price = CharField()
-    address = CharField()
-    hotel_url = CharField()
-    request = ForeignKeyField(Request, backref='found_hotels')
+    hotel_id = peewee.CharField()
+    hotel_name = peewee.CharField()
+    distance_from_center = peewee.CharField()
+    price = peewee.CharField()
+    address = peewee.CharField()
+    hotel_url = peewee.CharField()
+    request = peewee.ForeignKeyField(Request, backref='found_hotels')
 
     class Meta:
         """

@@ -1,6 +1,9 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from logger import logger_wraps, logger
 
 
+@logger_wraps()
+@logger.catch
 def confirm_selection(data: str, tag: str) -> InlineKeyboardMarkup:
     """
     Формирует и возвращает Inline клавиатуру, состоящую одной кнопки "Выбрать".

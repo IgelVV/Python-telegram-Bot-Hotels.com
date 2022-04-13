@@ -1,7 +1,10 @@
-from .models import *
+from .models import db, Request, Hotel
 from users import User
+from logger import logger_wraps, logger
 
 
+@logger_wraps()
+@logger.catch
 def create_db() -> None:
     """
     Создает базу данных, если ее нет.
@@ -11,6 +14,8 @@ def create_db() -> None:
         db.create_tables([Request, Hotel])
 
 
+@logger_wraps()
+@logger.catch
 def save_history(user: User) -> None:
     """
     Сохраняет данные пользователя в базу данных
@@ -47,6 +52,8 @@ def save_history(user: User) -> None:
         Hotel.insert_many(data).execute()
 
 
+@logger_wraps()
+@logger.catch
 def get_history_requests(user: User, limit=int) -> list[dict[str: str]]:
     """
     Получает данные нескольких последних запросов пользователя из базы данных.
@@ -89,6 +96,8 @@ def get_history_requests(user: User, limit=int) -> list[dict[str: str]]:
     return result
 
 
+@logger_wraps()
+@logger.catch
 def get_history_hotels(request_id: int) -> list[dict[str: str]]:
     """
     Получает данные отелей, найденных ранее из базы данных.

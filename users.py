@@ -1,6 +1,5 @@
-# todo Прочитал о таком способе аннотации методов,
-#  выдающих инстанс того же класса. Это допустимо?
 from __future__ import annotations
+from logger import logger_wraps, logger
 
 
 class User:
@@ -10,6 +9,7 @@ class User:
 
     all_users = dict()
 
+    @logger_wraps()
     def __init__(self, user_id: int) -> None:
         self.user_id = user_id
         self.city = None

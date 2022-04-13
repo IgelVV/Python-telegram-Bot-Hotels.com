@@ -4,9 +4,12 @@ from database import get_history_requests, get_history_hotels
 from users import User
 from keyboards.inline.confirmation import confirm_selection
 from utils.misc import auxiliary
+from logger import logger_wraps, logger
 
 
 @bot.message_handler(commands=['history'])
+@logger_wraps()
+@logger.catch
 def history_request(message: types.Message, limit: int = 5) -> None:
     """
     Отправляет пользователю несколько прошлых его запросов.
@@ -38,6 +41,8 @@ def history_request(message: types.Message, limit: int = 5) -> None:
 
 
 @bot.callback_query_handler(func=lambda call: call.data.endswith("<history>"))
+@logger_wraps()
+@logger.catch
 def callback_history_hotels(call: types.CallbackQuery) -> None:
     """
     Отправляет отели найденные в одном из прошлых запросов.

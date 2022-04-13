@@ -3,3 +3,4 @@ python-dotenv
 requests
 python-telegram-bot-calendar
 peewee
+loguru
